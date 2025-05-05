@@ -8,13 +8,16 @@ import json
 
 # ----------- Firestore初期化 -----------
 if not firebase_admin._apps:
-    if os.getenv("FIREBASE_KEY_JSON"):
-        firebase_key_json = os.getenv("FIREBASE_KEY_JSON")
-        cred = credentials.Certificate(json.loads(firebase_key_json))
-    else:
-        # ローカルでは firebase_key.json ファイルから読み込む
-        cred = credentials.Certificate("firebase_key.json")
-    firebase_admin.initialize_app(cred)
+    firebase_key_json = os.getenv("FIREBASE_KEY_JSON")
+    try:
+        if firebase_key_json:
+            cred = credentials.Certificate(json.loads(firebase_key_json))
+        else:
+            cred = credentials.Certificate("firebase_key.json")
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        st.error("Firebaseの初期化に失敗しました。Secretsの設定を確認してください。")
+        st.stop()
 db = firestore.client()
 
 # ----------- 共通スタイル -----------
@@ -34,9 +37,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ----------- クエリパラメータからページ判定 -----------
-params = st.query_params if hasattr(st, "query_params") else {}
-page = params.get("page", "create")
-topic_id = params.get("id", None)
+params = st.experimental_get_query_params()
+page = params.get("page", ["create"])[0]
+topic_id = params.get("id", [None])[0]
 
 # ----------- 議題作成ページ -----------
 if page == "create":
@@ -46,7 +49,7 @@ if page == "create":
         topic_id = str(uuid.uuid4())
         db.collection("topics").document(topic_id).set({"title": title})
         st.success("このURLをメンバーに共有してください：")
-        url = f"?page=post&id={topic_id}"
+        url = f"https://matomerukun.streamlit.app/?page=post&id={topic_id}"
         st.code(url)
         st.markdown(f"[👉 投稿ページへ移動]({url})", unsafe_allow_html=True)
 
@@ -62,8 +65,7 @@ elif page == "post":
             if st.button("🚀 投稿する"):
                 db.collection("topics").document(topic_id).collection("opinions").add({"text": opinion})
                 st.success("ご投稿ありがとうございました！")
-            summary_url = f"?page=summary&id={topic_id}"
-            st.markdown(f"<div style='margin-top:1rem;'><a href='{summary_url}' target='_self'>📊 結果を見る</a></div>", unsafe_allow_html=True)
+                st.markdown(f"[📊 結果を見る](?page=summary&id={topic_id})", unsafe_allow_html=True)
         else:
             st.error("議題が見つかりませんでした。")
     else:
