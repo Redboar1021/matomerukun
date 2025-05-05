@@ -3,10 +3,17 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import uuid
 from summarize import summarize_opinions
+import os
+import json
 
 # ----------- Firestore初期化 -----------
 if not firebase_admin._apps:
-    cred = credentials.Certificate("firebase_key.json")
+    if os.getenv("FIREBASE_KEY_JSON"):
+        firebase_key_json = os.getenv("FIREBASE_KEY_JSON")
+        cred = credentials.Certificate(json.loads(firebase_key_json))
+    else:
+        # ローカルでは firebase_key.json ファイルから読み込む
+        cred = credentials.Certificate("firebase_key.json")
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
