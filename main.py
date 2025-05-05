@@ -37,9 +37,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ----------- クエリパラメータからページ判定 -----------
-params = st.experimental_get_query_params()
-page = params.get("page", ["create"])[0]
-topic_id = params.get("id", [None])[0]
+params = st.query_params
+page = params.get("page", "create")
+topic_id = params.get("id", None)
 
 # ----------- 議題作成ページ -----------
 if page == "create":
