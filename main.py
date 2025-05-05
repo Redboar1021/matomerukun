@@ -21,13 +21,24 @@ if not firebase_admin._apps:
 db = firestore.client()
 
 # ----------- 共通スタイル -----------
-st.set_page_config(page_title="意見まとめる君", page_icon="📮", layout="centered")
+st.set_page_config(page_title="意見まとめる君", page_icon="📬", layout="centered")
 st.markdown("""
     <style>
-        .title { font-size:2rem; font-weight:bold; margin-bottom:1rem; }
-        .section { margin-top:2rem; margin-bottom:1rem; }
+        body {
+            background-color: #e6f7ff;
+        }
+        .title {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #007acc;
+        }
+        .section {
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
         .opinion-card {
-            background-color: #f9f9f9;
+            background-color: #f0faff;
             padding: 1em;
             border-radius: 10px;
             margin-bottom: 10px;
@@ -44,10 +55,15 @@ topic_id = params.get("id", None)
 # ----------- 議題作成ページ -----------
 if page == "create":
     st.markdown("<div class='title'>📝 議題を作成する</div>", unsafe_allow_html=True)
+    st.info("このツールは、匿名で投稿された意見をAIが中立的に要約するWebアプリです。議題を作成し、共有されたURLに他の人が意見を投稿できます。結果ページでは意見全体を見るか、要約だけ表示するかを選べます。")
+
     title = st.text_input("議題タイトル", placeholder="例：次の旅行先どうする？")
+    display_mode = st.radio("結果ページに表示する内容を選んでください：", ("意見一覧とAI要約", "AI要約のみ"))
+
     if st.button("✅ 投稿ページURLを発行"):
         topic_id = str(uuid.uuid4())
-        db.collection("topics").document(topic_id).set({"title": title})
+        show_all = display_mode == "意見一覧とAI要約"
+        db.collection("topics").document(topic_id).set({"title": title, "show_all": show_all})
         st.success("このURLをメンバーに共有してください：")
         url = f"https://matomerukun.streamlit.app/?page=post&id={topic_id}"
         st.code(url)
@@ -61,7 +77,7 @@ elif page == "post":
         if doc.exists:
             st.subheader(f"📌 議題：{doc.to_dict()['title']}")
             st.markdown("---")
-            opinion = st.text_area("あなたの意見（匿名OK）", placeholder="例：〇〇の方が安いと思う")
+            opinion = st.text_area("あなたの意見（匿名OK）", placeholder="例：○○の方が安いと思う")
             if st.button("🚀 投稿する"):
                 db.collection("topics").document(topic_id).collection("opinions").add({"text": opinion})
                 st.success("ご投稿ありがとうございました！")
@@ -77,23 +93,27 @@ elif page == "summary":
     if topic_id:
         doc = db.collection("topics").document(topic_id).get()
         if doc.exists:
-            st.subheader(f"📌 議題：{doc.to_dict()['title']}")
+            data = doc.to_dict()
+            st.subheader(f"📌 議題：{data['title']}")
+            show_all = data.get("show_all", True)
             st.markdown("---")
             opinions_ref = db.collection("topics").document(topic_id).collection("opinions").stream()
             opinions = [doc.to_dict()["text"] for doc in opinions_ref]
 
-            if opinions:
+            if not opinions:
+                st.info("まだ投稿がありません。")
+                st.stop()
+
+            if show_all:
                 st.markdown("### 📝 投稿された意見")
                 for i, op in enumerate(opinions):
                     st.markdown(f"<div class='opinion-card'>{i+1}. {op}</div>", unsafe_allow_html=True)
 
-                if st.button("🤖 AIで要約する"):
-                    with st.spinner("AIが意見をまとめています..."):
-                        summary = summarize_opinions(opinions)
-                    st.markdown("### ✅ AIによるまとめ")
-                    st.success(summary)
-            else:
-                st.info("まだ投稿がありません。")
+            if st.button("🧐 AIで要約する"):
+                with st.spinner("AIが意見をまとめています..."):
+                    summary = summarize_opinions(opinions)
+                st.markdown("### ✅ AIによるまとめ")
+                st.success(summary)
         else:
             st.error("議題が見つかりませんでした。")
     else:
